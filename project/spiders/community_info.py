@@ -122,20 +122,26 @@ class CommunityInfoSpider(Spider):
             CommunityItem: 小区数据
             scrapy.http.Request: 下一个请求
         """
+        info_dict: dict[str, str] = {}
         if community.district.endswith("old"):
-            yield CommunityItem(
-                name=community.name.strip(),
-                link=community.link,
-                district=community.district.split("_")[0],
-                # TODO: 使用 CSS 选择器提取二手房信息
-            )
+            village_info = response.css("div.village_info.base_info")
+            for part in village_info:
+                info = part.css("li")
+                for item in info:
+                    info_key: str = item.css("span::text").get()
+                    info_key = info_key.replace(" ", "")
+                    info_value: str = item.css("p::text").get()
+                    if info_key in info_dict.keys():
+                        info_key += "2"
+                    info_dict[info_key] = info_value
         elif community.district.endswith("new"):
-            yield CommunityItem(
-                name=community.name.strip(),
-                link=community.link,
-                district=community.district.split("_")[0],
-                # TODO: 使用 CSS 选择器提取新房信息
-            )
+            pass
+        yield CommunityItem(
+            name=community.name.strip(),
+            link=community.link,
+            district=community.district.split("_")[0],
+            info=info_dict
+        )
         self.community_list.loc[community.link, "undone"] = False
         '''获取下一页链接
         '''
