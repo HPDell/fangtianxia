@@ -12,6 +12,8 @@ import pandas as pd
 import json
 from pathlib import Path
 from dataclasses import dataclass
+from bs4 import BeautifulSoup
+import re
 
 ROOT_DIR = Path(__file__).parent / ".." / ".."
 
@@ -135,7 +137,24 @@ class CommunityInfoSpider(Spider):
                         info_key += "2"
                     info_dict[info_key] = info_value
         elif community.district.endswith("new"):
-            pass
+            '''由于HTML原始数据中有错误，所以只能使用更强大的 BeautifulSoup 库进行解析。
+            '''
+            soup = BeautifulSoup(response.text, "html.parser")
+            blocks = soup.find("div", class_="main-left").find_all("div", class_="main-item")
+            blocks_list = [x for x in [x.find("ul", class_="list") for x in blocks] if x is not None]
+            for block in blocks_list:
+                infos = block.find_all("li")
+                for item in infos:
+                    key_elem, value_elem = list(item.children)[:2]
+                    if key_elem is None:
+                        continue
+                    info_key = re.subn("[\s：]", "", "".join(key_elem.stripped_strings))[0]  # 使用正则表达式，将空白字符 (\s) 或者中文冒号 (：) 替换为空字符串
+                    if value_elem is None:
+                        continue
+                    info_value = " ".join(value_elem.stripped_strings)  # 保留一个空格，以便于后期处理数据
+                    if info_key in info_dict.keys():
+                        info_key += "2"
+                    info_dict[info_key] = info_value
         yield CommunityItem(
             name=community.name.strip(),
             link=community.link,

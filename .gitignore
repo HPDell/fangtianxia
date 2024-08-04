@@ -164,3 +164,4 @@ cython_debug/
 # Others
 *.jsonl
 progress.json
+*.html
