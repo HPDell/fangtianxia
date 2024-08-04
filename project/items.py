@@ -15,10 +15,6 @@ class CommunityItem(scrapy.Item):
     link = scrapy.Field()
     type = scrapy.Field()
     district = scrapy.Field()
-    address = scrapy.Field()
-    builtyear = scrapy.Field()
-    carpark_type = scrapy.Field()
-    carpark_nb = scrapy.Field()
-    page_on_list = scrapy.Field()
+    info = scrapy.Field()
     
     pass
