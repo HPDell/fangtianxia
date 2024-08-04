@@ -67,16 +67,19 @@ class CommunityInfoSpider(Spider):
         undone = self.community_list.loc[self.community_list["undone"], :]
         # print("undone", undone.head(1))
         if undone.shape[0] > 0:
-            community = undone.head(1).to_dict(orient="records")[0]
-            # print("community dict", community)
-            if community["district"].endswith("_old"):
-                region_url = self.regions[community["district"]]
-                community_link = community["link"]
-                full_link = f"{region_url}{community_link}"
-                community["detail_link"] = self.get_url_house_detail(full_link)
-            elif community["district"].endswith("_new"):
-                community["detail_link"] = self.get_url_house_detail(community["link"])
-            return CommunityTarget(**community)
+            for irow in range(undone.shape[0]):
+                community = undone.iloc[irow, :].to_dict()
+                if community["district"].endswith("_old"):
+                    community_link: str = community["link"]
+                    if community_link.startswith("/loupan/office"):
+                        self.community_list.loc[community_link, "undone"] = False
+                        continue
+                    region_url = self.regions[community["district"]]
+                    full_link = f"{region_url}{community_link}"
+                    community["detail_link"] = self.get_url_house_detail(full_link)
+                elif community["district"].endswith("_new"):
+                    community["detail_link"] = self.get_url_house_detail(community["link"])
+                return CommunityTarget(**community)
         else:
             print("注意：所有数据已爬取完毕")
             return None
