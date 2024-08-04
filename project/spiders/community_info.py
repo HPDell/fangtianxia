@@ -133,9 +133,9 @@ class CommunityInfoSpider(Spider):
             for part in village_info:
                 info = part.css("li")
                 for item in info:
-                    info_key: str = item.css("span::text").get()
-                    info_key = info_key.replace(" ", "")
-                    info_value: str = item.css("p::text").get()
+                    info_key: str = item.css("li *:first-child::text").get()
+                    info_key = re.subn(r"\s", "", info_key)[0]
+                    info_value: str = " ".join(item.css("li *:last-child *::text").getall())
                     if info_key in info_dict.keys():
                         info_key += "2"
                     info_dict[info_key] = info_value
@@ -151,7 +151,7 @@ class CommunityInfoSpider(Spider):
                     key_elem, value_elem = list(item.children)[:2]
                     if key_elem is None:
                         continue
-                    info_key = re.subn("[\s：]", "", "".join(key_elem.stripped_strings))[0]  # 使用正则表达式，将空白字符 (\s) 或者中文冒号 (：) 替换为空字符串
+                    info_key = re.subn(r"[\s：]", "", "".join(key_elem.stripped_strings))[0]  # 使用正则表达式，将空白字符 (\s) 或者中文冒号 (：) 替换为空字符串
                     if value_elem is None:
                         continue
                     info_value = " ".join(value_elem.stripped_strings)  # 保留一个空格，以便于后期处理数据
