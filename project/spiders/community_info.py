@@ -1,7 +1,5 @@
 import random
 from time import sleep
-from typing import Iterable
-from scrapy.http import response
 import scrapy
 import scrapy.http
 import scrapy.utils
@@ -9,11 +7,12 @@ import scrapy.utils.url
 from project.items import CommunityItem
 from scrapy import Spider
 import pandas as pd
-import json
 from pathlib import Path
 from dataclasses import dataclass
 from bs4 import BeautifulSoup
 import re
+from twisted.python.failure import Failure
+from scrapy.spidermiddlewares.httperror import HttpError
 
 ROOT_DIR = Path(__file__).parent / ".." / ".."
 
@@ -68,20 +67,20 @@ class CommunityInfoSpider(Spider):
         # print("undone", undone.head(1))
         if undone.shape[0] > 0:
             for irow in range(undone.shape[0]):
-                community = undone.iloc[irow, :].to_dict()
-                if community["district"].endswith("_old"):
+                community: dict[str, str] = undone.iloc[irow, :].to_dict()
+                if community["district"].strip().endswith("_old"):
                     community_link: str = community["link"]
-                    if community_link.startswith("/loupan/office"):
+                    if community_link.startswith("/loupan/office") or community_link.startswith("/loupan/shop"):
                         self.community_list.loc[community_link, "undone"] = False
                         continue
                     region_url = self.regions[community["district"]]
                     full_link = f"{region_url}{community_link}"
                     community["detail_link"] = self.get_url_house_detail(full_link)
-                elif community["district"].endswith("_new"):
+                elif community["district"].strip().endswith("_new"):
                     community["detail_link"] = self.get_url_house_detail(community["link"])
                 return CommunityTarget(**community)
         else:
-            print("注意：所有数据已爬取完毕")
+            self.logger.info("注意：所有数据已爬取完毕")
             return None
   
     def start_requests(self):
@@ -111,9 +110,14 @@ class CommunityInfoSpider(Spider):
         '''
         next_community = self.find_next()
         if next_community is not None:
-            yield scrapy.Request(url=next_community.detail_link, callback=self.parse, cb_kwargs={
-                "community": next_community
-            })
+            yield scrapy.Request(
+                url=next_community.detail_link,
+                callback=self.parse,
+                errback=self.error_back,
+                cb_kwargs={
+                    "community": next_community
+                }
+            )
         
 
     def parse(self, response: scrapy.http.Response, community: CommunityTarget):
@@ -127,6 +131,9 @@ class CommunityInfoSpider(Spider):
             CommunityItem: 小区数据
             scrapy.http.Request: 下一个请求
         """
+        if re.search("...", response.text) is not None:
+            self.logger.error("请手动验证")
+            return
         info_dict: dict[str, str] = {}
         if community.district.endswith("old"):
             village_info = response.css("div.village_info.base_info")
@@ -151,13 +158,15 @@ class CommunityInfoSpider(Spider):
                     key_elem, value_elem = list(item.children)[:2]
                     if key_elem is None:
                         continue
-                    info_key = re.subn(r"[\s：]", "", "".join(key_elem.stripped_strings))[0]  # 使用正则表达式，将空白字符 (\s) 或者中文冒号 (：) 替换为空字符串
+                    info_key, _ = re.subn(r"[\s\n：]", "", "".join(key_elem.stripped_strings))  # 使用正则表达式，将空白字符 (\s) 或者中文冒号 (：) 替换为空字符串
                     if value_elem is None:
                         continue
                     info_value = " ".join(value_elem.stripped_strings)  # 保留一个空格，以便于后期处理数据
                     if info_key in info_dict.keys():
                         info_key += "2"
                     info_dict[info_key] = info_value
+        '''如果没有找到任何信息，表示可能需要进行验证
+        '''
         yield CommunityItem(
             name=community.name.strip(),
             link=community.link,
@@ -170,6 +179,27 @@ class CommunityInfoSpider(Spider):
         next_community = self.find_next()
         if next_community is not None:
             sleep(1 + random.uniform(0, 1))
-            yield response.follow(url=next_community.detail_link, callback=self.parse, cb_kwargs={
+            yield response.follow(url=next_community.detail_link, callback=self.parse, errback=self.error_back, cb_kwargs={
                 "community": next_community
             })
+    
+    def error_back(self, failure):
+        self.logger.error(failure)
+        if failure.check(HttpError):
+            response: scrapy.http.HtmlResponse = failure.value.response
+            self.logger.error("HttpError on %s", response.url)
+            community: CommunityTarget = failure.request.cb_kwargs["community"]
+            self.community_list.loc[community.link, "undone"] = False
+            next_community = self.find_next()
+            if next_community is not None:
+                sleep(1 + random.uniform(0, 1))
+                yield response.follow(
+                    url=next_community.detail_link,
+                    callback=self.parse,
+                    errback=self.error_back,
+                    cb_kwargs={
+                        "community": next_community
+                    }
+                )
+            
+                        
