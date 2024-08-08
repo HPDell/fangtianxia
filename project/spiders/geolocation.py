@@ -12,6 +12,7 @@ ROOT_DIR = Path(__file__).parent / ".." / ".."
 @dataclass
 class CommunityTarget:
     index: int
+    uuid: str
     name: str
     address: str
     waiting: bool
