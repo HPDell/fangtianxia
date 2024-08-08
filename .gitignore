@@ -168,3 +168,4 @@ progress.json
 *.csv
 key.txt
 !targets.csv
+shp/
