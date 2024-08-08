@@ -11,7 +11,7 @@ ROOT_DIR = Path(__file__).parent / ".." / ".."
 
 @dataclass
 class CommunityTarget:
-    index: int
+    # index: int
     uuid: str
     name: str
     address: str
@@ -54,7 +54,7 @@ class CommunityGeoLocator(Spider):
                     return (self.get_url(item), item)
                 else:
                     self.logger.error("地址太短，无法解析: %s", info["name"])
-                    self.communities.loc[info["index"], "waiting"] = False
+                    self.communities.loc[info["uuid"], "waiting"] = False
         else:
             self.logger.info("所有地址已编码完毕")
             return (None, None)
@@ -67,7 +67,7 @@ class CommunityGeoLocator(Spider):
             return
 
         if (ROOT_DIR / "community.csv").exists():
-            self.communities = pd.read_csv(ROOT_DIR / "community.csv", index_col=0).reset_index(drop=False)
+            self.communities = pd.read_csv(ROOT_DIR / "community.csv", index_col=0).set_index("uuid", drop=False)
             self.communities["waiting"] = True
         else:
             self.logger.error("无法读取小区数据")
@@ -75,7 +75,7 @@ class CommunityGeoLocator(Spider):
         
         if (ROOT_DIR / "community_geolocation.jsonl").exists():
             finished = pd.read_json(ROOT_DIR / "community_geolocation.jsonl", lines=True)
-            self.communities.loc[finished.index, "waiting"] = False
+            self.communities.loc[finished.uuid, "waiting"] = False
         
         target, community = self.find_next()
         if target is not None:
@@ -116,7 +116,7 @@ class CommunityGeoLocator(Spider):
                 self.logger.error("服务器返回错误: %s", error_info)
         '''Next
         '''
-        self.communities.loc[community.index, "waiting"] = False
+        self.communities.loc[community.uuid, "waiting"] = False
         next_target, next_community = self.find_next()
         if next_target is not None:
             yield response.follow(
