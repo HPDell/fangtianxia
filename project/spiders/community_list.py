@@ -75,21 +75,27 @@ class CommunityListSpider(Spider):
     def parse(self, response: scrapy.http.Response, region_key: str):
         _, region_type = region_key.split("_")
         if region_type == "old":
-            house_list = response.css("div.houseList a.plotTit")
+            house_list = [CommunityItem(
+                name=item.css("::text").get(),
+                link=item.css("::attr(href)").get(),
+                district=region_key,
+                page_on_list=self.progress[region_key]["page"],
+            ) for item in response.css("div.houseList a.plotTit")]
         elif region_type == "new":
-            house_list = response.css("div.nhouse_list div.nlcd_name a")
+            house_list = [CommunityItem(
+                name=item.css("div.nlcd_name a::text").get(),
+                link=item.css("div.nlcd_name a::attr(href)").get(),
+                district=region_key,
+                page_on_list=self.progress[region_key]["page"],
+                unit_price=item.css("div.nhouse_price span::text").get()
+            ) for item in response.css("div.nhouse_list ul li")]
         else:
             house_list = []
         if len(house_list) > 0:
             ''' 如果能获取到列表，表示正常情况，可以继续获取数据。
             '''
             for item in house_list:
-                yield CommunityItem(
-                    name=item.css("::text").get(),
-                    link=item.css("::attr(href)").get(),
-                    district=region_key,
-                    page_on_list=self.progress[region_key]["page"]
-                )
+                yield item
             ''' 获取下一页的链接
             '''
             next_page_link = None

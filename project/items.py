@@ -16,5 +16,7 @@ class CommunityItem(scrapy.Item):
     type = scrapy.Field()
     district = scrapy.Field()
     info = scrapy.Field()
+    page_on_list = scrapy.Field()
+    unit_price = scrapy.Field()
     
     pass
